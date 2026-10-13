@@ -1,0 +1,108 @@
+REA / Euler_SYCL / RTX 4090 实测报告
+实验日期：2026-10-13（Asia/Shanghai）
+
+结论与完成范围
+备份、完整目录上传、服务器 Git 初始化及按指定交叉映射推送已完成。
+完整“二进制 -> REA -> 全部恢复源码 -> 重编译 -> 性能比较”未完成，原因是本次 REA/Ghidra 配置不支持嵌入的 NVIDIA GPU 二进制，且 CPU 端复杂函数的伪代码不能直接重编译。
+完整逆向版本的性能差异：不可计算；没有这样的可运行且通过正确性验证的完整版本。
+下列性能数据仅来自两个活跃计算函数的局部重建，不得表述为整套 Euler_SYCL 的逆向性能。
+
+路径与仓库映射（严格遵照用户指定）
+本机原始备份：/data/gpi/Gitcode/rea
+本机 Euler 来源：/home/gpi-2404/code/Euler_SYCL_REA
+服务器 REA：/home/zrf/code/REA_TEST/rea
+  origin = git@github.com:GPI03248/Euler_SYCL_REA_TEST.git
+  upstream = https://github.com/morluto/rea.git
+服务器 Euler：/home/zrf/code/REA_TEST/Euler_SYCL_REA
+  origin = git@github.com:GPI03248/rea.git
+  原有 REA main 提交 4276aaf18bb607cdd0182280f76cf50fcd110c3c 保存在历史及 archive/rea-before-euler 分支。
+  main 的项目文件按要求改为 Euler；没有 force push，没有丢弃原历史。
+上传 Euler 共 478 个文件、2,395,274,353 字节，包含原目录中已有数据和 .local。
+Git 使用原项目忽略规则及实验忽略规则；大体积运行输出、工具安装和可执行文件保存在服务器，不提交至 Git。
+本机 REA 已通过 git fsck --full，保留上游历史与 origin。
+
+工具与配置
+REA 6.4.0，上游提交 db3c9f084bacad34f620ba678924564e20f441f9
+Node.js 24.18.0；npm 11.16.0（项目固定版本）；Ghidra 12.1.4；Temurin JDK 21.0.12.1+1。
+REA 通过 npm ci + npm run build:cached 构建，通过真实 MCP open_binary / binary_overview / batch_decompile 调用。
+工具安装仅位于 /home/zrf/code/REA_TEST/tools；Ghidra 与 JDK 下载均验证发布 SHA-256。
+GPU：CUDA_VISIBLE_DEVICES=1，RTX 4090，sm_89；不使用 GPU 0 进行计算。
+编译器：/home/zrf/apps/oneapi-25.3.1/compiler/2025.3/bin/icpx
+编译：FP64、-O3、-fno-associative-math、-funroll-loops、SYCL CUDA 后端；原始与局部重建的编译及链接顺序一致。
+UR_ADAPTERS_FORCE_LOAD=/home/zrf/apps/UR/lib/libur_adapter_cuda.so
+仅修正 4 处本机写死的 DTP include 路径；FP64 不链接未使用的 DTP 静态库，头文件仍来自 /home/zrf/code/DTP_lib/src。
+Makefile 限制编译根目录求解器 .cpp，避免误编译 rea_test 中保留的反编译文本。
+算例：Case=1，二维等熵涡，512 x 512，EndTime=5.0，IS_linear=1。
+
+完整逆向障碍：实测证据
+1. REA 成功识别外层 x86_64 ELF，报告 820 个过程；本实验选定并成功反编译 7 个函数，未声称恢复全部 820 个过程。
+2. 从 SYCL offload 数据中提取 5 个 EM_CUDA=190 ELF 镜像，NVIDIA cuobjdump 成功解析；含 55 个 SASS 函数条目。
+3. REA 对原始 image_01.cubin 返回：unsupported ELF header version。
+4. 仅对诊断副本将 NVIDIA e_version 0x79 改为 ELF 1 后，REA 返回：unsupported ELF architecture。原始镜像未修改，诊断副本从未用于运行或性能测试。
+5. 原始反编译文本直接交给 icpx 做语法检查失败：undefined8、未恢复的 C++ 类型/调用约定等。日志：analysis/raw-recompile-diagnostics.txt。
+6. 当前 Ghidra 安装中未找到 CUDA/PTX/NVIDIA processor 模块。未将其误标为 x86 来强行分析。
+因此，仅恢复 CPU 外壳、保留原 GPU 二进制，不能算完成完整 GPU 代码逆向重编译；本次也没有这样伪装结果。
+
+局部重建的准确范围
+从实际二进制中经 REA 取得：
+  linear_5th_P @ 0x41cbb0
+  linear_5th_M @ 0x41cc00
+直接保留伪代码的浮点常数与运算括号，不从原函数源码抄写实现。
+prepare_partial.py 仅将这两个函数的定义替换为恢复文本，其余求解器源代码继续使用用户提供的源码。
+随后用同样的 SYCL 编译器为 GPU 重新编译整个混合来源项目；这属于 CPU 反编译结果重新编译至 GPU 的局部实验，不是 CUDA SASS 全量反编译。
+5 个 GPU 镜像中，1 个发生变化，另 4 个逐字节相同；详见 binary-comparison.json。
+
+原始基线
+单独 1 次预热 + 5 次正式运行，总耗时中位数 8.59 秒，范围 8.53–8.75 秒。
+6 次最终输出逐字节一致，所有数值有限。
+
+正式配对性能结果（每个版本 1 次预热 + 5 次测量，固定随机种子交替顺序）
+指标                           原始版本             局部重建版本       中位数变化
+总进程墙钟耗时（秒）           8.561304             8.542120          -0.2241%
+求解循环每步耗时（毫秒）       3.127660             3.118600          -0.2897%
+总耗时范围（秒）               8.548542–8.642486    8.463190–8.639794
+总耗时样本标准差（秒）         0.039415             0.062664
+变化公式：(局部重建 / 原始 - 1) x 100%；负数表示耗时减少。
+配对百分比差的平均值 -0.4104%，基于 5 组数据的近似 t 区间（95%）为 [-1.0168%, +0.1961%]，跨过 0。
+解释：本算例下性能基本相同，不能据这些小样本断言提速，不能外推至完整逆向程序、其他网格或精度。
+正式计时采用 perf_counter + 阻塞 wait，超时由独立 watchdog 执行；避免 Python 带 timeout 的轮询 wait 引入约 50ms 量化。
+早期轮询计时结果仅作为 coarse.json 存档，不用于上述结论。
+总墙钟包含初始化和场输出；程序自带的“GPU total runtime”实际是求解循环墙钟 / 步数，也含中间场输出，不是纯 GPU kernel 时间。
+未锁 GPU 时钟或功耗；未改变用户系统设置，运行波动仍存在。
+
+数值检查
+同一版本的全部正式/预热最终输出各自一致；两个版本之间不逐字节一致。
+对第 1 组的全部 4 个输出时刻、x/y/u/v/p/rho 分块比较；最大绝对差 1.5765166949677223e-14。
+全部值有限：True。
+全部元素满足 |a-b| <= 1e-11 + 1e-11*|a|：True。
+这个阈值仅用于本实验的有限样本检查，不代替用户的科学误差标准，也不证明所有输入全局等价。
+原始二进制 SHA-256：420c3a21499156f58823c839b81cc624fbf793485458165a09420987cbc9847e
+局部重建 SHA-256：9647457cf9cb53f73651e160681c49d66eedf1353360b353206d1bd5ca022f5c
+
+复现与证据（服务器 Euler_SYCL_REA 目录）
+  bash rea_test/build.sh
+  bash rea_test/run_baseline.sh
+  python3 rea_test/inspect_binary.py
+  python3 rea_test/analyze_rea.py
+  python3 rea_test/diagnose_gpu.py
+  python3 rea_test/prepare_partial.py
+  bash rea_test/build_partial.sh
+  source rea_test/env.sh
+  python3 rea_test/run_paired.py
+  python3 rea_test/compare_fields.py
+  python3 rea_test/compare_binary.py
+已存在的运行目录与 partial_source 被脚本保留并拒绝覆盖；重做实验前请另行归档这些目录。不要把失败的原始伪代码 selected_raw.cpp 当作可编译源码。
+主结果：paired-summary.json、paired-raw.json、field-comparison.json、baseline.json。
+溯源：partial-provenance.json、binary-comparison.json、embedded-elf.json、environment.txt。
+REA 原始响应：analysis/*.json、analysis/rpc.jsonl、recovered/*.cpp。
+全部场文件/日志：rea_test/runs/；编译与分析日志还保存在 /home/zrf/code/REA_TEST/logs。
+
+网络与后续 push
+本次根据 /home/gpi-2404/bashrc/vpn_env.md 使用本机 Windows VM 代理。
+4090 的终端通过 127.0.0.1:18080 反向隧道访问该代理；没有修改系统全局网络代理。
+需要重新建立隧道时，在 gpi-2404 执行：
+  ssh -o ExitOnForwardFailure=yes -fN -R 127.0.0.1:18080:192.168.122.166:10808 4090_gpi
+在对应 4090 终端设置 http_proxy/https_proxy=http://127.0.0.1:18080。
+Git 仓库指定 /home/zrf/.ssh/id_ed25519_gpi03248 身份；直连慢时可为该次命令设置：
+  GIT_SSH_COMMAND='ssh -i /home/zrf/.ssh/id_ed25519_gpi03248 -o IdentitiesOnly=yes -o ProxyCommand="nc -X connect -x 127.0.0.1:18080 %h %p"' git push
+无需 force push。未建立自动监控提交服务；本次所有项目修改已按用户要求提交和推送。
