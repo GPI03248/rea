@@ -2,7 +2,7 @@ REA / Euler_SYCL / RTX 4090 实测报告
 实验日期：2026-10-13（Asia/Shanghai）
 
 结论与完成范围
-备份、完整目录上传、服务器 Git 初始化及按指定交叉映射推送已完成。
+备份、完整目录上传、服务器 Git 初始化及按纠正后的同名映射推送已完成。
 完整“二进制 -> REA -> 全部恢复源码 -> 重编译 -> 性能比较”未完成，原因是本次 REA/Ghidra 配置不支持嵌入的 NVIDIA GPU 二进制，且 CPU 端复杂函数的伪代码不能直接重编译。
 完整逆向版本的性能差异：不可计算；没有这样的可运行且通过正确性验证的完整版本。
 下列性能数据仅来自两个活跃计算函数的局部重建，不得表述为整套 Euler_SYCL 的逆向性能。
@@ -11,10 +11,10 @@ REA / Euler_SYCL / RTX 4090 实测报告
 本机原始备份：/data/gpi/Gitcode/rea
 本机 Euler 来源：/home/gpi-2404/code/Euler_SYCL_REA
 服务器 REA：/home/zrf/code/REA_TEST/rea
-  origin = git@github.com:GPI03248/Euler_SYCL_REA_TEST.git
+  origin = git@github.com:GPI03248/rea.git
   upstream = https://github.com/morluto/rea.git
 服务器 Euler：/home/zrf/code/REA_TEST/Euler_SYCL_REA
-  origin = git@github.com:GPI03248/rea.git
+  origin = git@github.com:GPI03248/Euler_SYCL_REA_TEST.git
   原有 REA main 提交 4276aaf18bb607cdd0182280f76cf50fcd110c3c 保存在历史及 archive/rea-before-euler 分支。
   main 的项目文件按要求改为 Euler；没有 force push，没有丢弃原历史。
 上传 Euler 共 478 个文件、2,395,274,353 字节，包含原目录中已有数据和 .local。
